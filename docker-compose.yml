@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-resilientlab}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./api/ControlApi
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      DATABASE_URL: ${DATABASE_URL:-Host=postgres;Port=5432;Database=resilientlab;Username=postgres;Password=postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      WORKER_DB_URL: ${WORKER_DB_URL:-postgresql://postgres:postgres@postgres:5432/resilientlab}
+      MOCK_API_URL: ${MOCK_API_URL:-http://mock-api:8090}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-20}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-5000}
+      WORKER_RETRY_MAX: ${WORKER_RETRY_MAX:-3}
+      WORKER_RETRY_BASE_DELAY_MS: ${WORKER_RETRY_BASE_DELAY_MS:-500}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-api:
+        condition: service_started
+
+  mock-api:
+    build:
+      context: ./mock-api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${MOCK_API_PORT:-8090}:8090"
+    environment:
+      MOCK_API_PORT: ${MOCK_API_PORT:-8090}
+
+volumes:
+  postgres-data:
