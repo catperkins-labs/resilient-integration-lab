@@ -15,9 +15,22 @@ const routes: Record<string, Handler> = {
 
   // Stub: simulate processing an item
   "POST /process": (req, res) => {
+    const MAX_BODY_BYTES = 64 * 1024; // 64 KB limit
     let body = "";
-    req.on("data", (chunk) => (body += chunk));
+    let bodySize = 0;
+
+    req.on("data", (chunk: Buffer) => {
+      bodySize += chunk.length;
+      if (bodySize > MAX_BODY_BYTES) {
+        req.destroy();
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "payload_too_large" }));
+        return;
+      }
+      body += chunk;
+    });
     req.on("end", () => {
+      if (res.headersSent) return;
       console.log(`[mock-api] POST /process body=${body}`);
       // Randomly simulate success or transient failure for testing retry logic
       const rand = Math.random();

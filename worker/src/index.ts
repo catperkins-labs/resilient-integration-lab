@@ -25,10 +25,11 @@ async function main(): Promise<void> {
       if (batch.length === 0) {
         console.log("[worker] No pending items — sleeping...");
       } else {
-        console.log(`[worker] Processing batch of ${batch.length} item(s)...`);
-        // TODO: replace with concurrent processing using config.concurrency
-        for (const item of batch) {
-          await processItem(item, config);
+        console.log(`[worker] Processing batch of ${batch.length} item(s) (concurrency=${config.concurrency})...`);
+        // Process items in parallel up to the configured concurrency limit
+        for (let i = 0; i < batch.length; i += config.concurrency) {
+          const chunk = batch.slice(i, i + config.concurrency);
+          await Promise.all(chunk.map((item) => processItem(item, config)));
         }
       }
     } catch (err) {
