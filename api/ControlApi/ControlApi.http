@@ -1,0 +1,6 @@
+@ControlApi_HostAddress = http://localhost:8080
+
+GET {{ControlApi_HostAddress}}/health
+Accept: application/json
+
+###
